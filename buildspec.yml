@@ -1,0 +1,33 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: latest
+    on-failure: ABORT
+    commands:
+      - n lts && node -v && npm -v
+      - npm ci
+  pre_build:
+    on-failure: ABORT
+    commands:
+      - npm run lint
+  build:
+    on-failure: ABORT
+    commands:
+      - npm run build
+      - zip -jmX ./dist/server.zip ./dist/server/** ./dist/app/manifest.json
+  post_build:
+    on-failure: ABORT
+    commands:
+      - aws lambda update-function-code --function-name ${FUNCTION_NAME} --zip-file fileb://./dist/server.zip
+      - aws lambda wait function-updated-v2 --function-name ${FUNCTION_NAME}
+      - aws s3 sync ./dist/app "s3://${BUCKET}" --delete --size-only --cache-control 'public, max-age=604800, immutable'
+
+artifacts:
+  files:
+    - 'dist/**/*'
+
+cache:
+  paths:
+    - 'node_modules/**/*'
